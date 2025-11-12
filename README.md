@@ -1,4 +1,5 @@
 # RustBook
+
 Working through examples in the Rust Book
 
 ## Notes
@@ -162,57 +163,132 @@ Working through examples in the Rust Book
     drop(email); // Releases memory that u still points to.
     println!("{}", u.username); // Points to freed memory
   }
-  ```
 
-  - The `drop(email)` will cause a compile-time error because of the explicit lifetime stated in User.
+
+  - The `drop(email)` will cause a compile-time error because of the explicit lifetime stated in User with `'a`.
 
 ### Chapter 6 - Enums and Pattern Matching
-- TBD
+
+- Structs are `AND` types:
+  - A `Rectangle` has a width **and** a height.
+- Enums are `OR` types:
+  - A `Shape` is a `Circle` or a `Rectangle` or a `Polygon`
+- Structs group different data types, Enums distinguish
+- Whenver an enum is handled, we need to handle each probable type (usually with match)
+
+  ```rust
+  enum IpAddr {
+    V4(u8, u8, u8, u8),
+    V6(String),
+  }
+
+  impl IpAddr {
+
+      fn display(&self) {
+        match self {
+            IpAddr::V4(a, b, c, d) => println!("Standard IPv4: {}.{}.{}.{}", a, b, c, d),
+            IpAddr::V6(s) => println!("Standard IPv6: {}", s),        
+          }
+      }
+
+      fn is_addr6(&self) -> bool {
+        match self {
+          IpAddr::V6(_) => true,
+          _ => false, // W/O this, compile-time error. Must handle every pattern. 
+        }
+      }
+  }
+
+  fn main() {
+    let localhost_v4 = IpAddr::V4(127, 0, 0, 1);
+    let localhost_v6 = IpAddr::V6(String::from("::1"));
+
+    localhost_v4.display();
+    println!("Is lcaolhost V6? {}", lcaolhost_v6.is_addr6());   // true  
+  }
+  ```
+
+- Rust doesn't use null, instead it has:
+
+  ```rust
+  // Option<T> is a Functor/Monad?
+  enum Option<T> { 
+    None,    // No Value
+    Some(T), // Value Exists
+  }
+  ```
+
+- `if let` vs `match`:
+  ```rust
+      match config_max {
+        Some(max) => println!("Max is {max}"),
+        _ => (),
+      }
+
+      // Same functionality, but this does not handle config_max = None case.
+      if let Some(max) = config_max {
+        println!("Max is {max}");
+      }
+  ```
 
 ### Chapter 7 - Managing Projects with Crates, Packages, and Modules
+
 - TBD
 
 ### Chapter 8 - Common Collections
+
 - Define new Vector with `let v: Vec<T> = Vec::new();`
 - If we have a reference to any element, we cannot push a new number to the end of the vector. Why?
   - Assuning `let n = v.len();` and `let m = v.capacity();`:
     - If n+1 < m: Pushing a new element to `v` will work fine without affecting the reference.
-    - If n+1 >= m: Vector `v` might have to be reallocated to a different contiguous location in memory. __MAKING THE REFERENCE INVALID__. So, Rust's borrow checker does not allow pushing new elements while there is a reference.
+    - If n+1 >= m: Vector `v` might have to be reallocated to a different contiguous location in memory. **MAKING THE REFERENCE INVALID**. So, Rust's borrow checker does not allow pushing new elements while there is a reference.
 
 ### Chapter 9 - Error Handling
+
 - TBD
 
 ### Chapter 10 - Generic Types, Traits, and Lifetimes
+
 - TBD
 
 ### Chapter 11 - Writing Automated Tests
+
 - TBD
 
 ### Chapter 12 - An I/O Project: Building a Command Line Program
+
 - TBD
 
 ### Chapter 13 - Functional Language Features: iterators and Closures
+
 - TBD
 
 ### Chapter 14 - More about Cargo and Crates.io
+
 - TBD
 
 ### Chapter 15 - Smart Pointers
+
 - TBD
 
 ### Chapter 16 - Fearles Concurrency
+
 - TBD
 
 ### Chapter 17 - Fundamentals of Async Programming
+
 - TBD
 
 ### Chapter 18 - Object Oriented Programming
+
 - TBD
 
 ### Chapter 19 - Patterns and Matching
+
 - TBD
 
 ### Chapter 20 - Advanced Features
+
 - TBD
 
 ## Readings
@@ -226,7 +302,7 @@ Working through examples in the Rust Book
 - Can intercept/catch panics at multiple levels:
   - At thread level, we can use: `std::panic::catch_unwind( potential_panic_func() )`
   - At process level, add `catch_unwind(rest_of_code())`, so any future code called by process is covered.
-  - __Q__: What happens to `catch_unwind(...)` when you call fork() later in the code?
+  - **Q**: What happens to `catch_unwind(...)` when you call fork() later in the code?
     - The Parent Process and Child Process are completely isolated. So, the child will have it's own version of the panic and the child process crashing/panicing will never make it's way back to the parent `catch_unwind()`
 - Example of panic catching code:
 
@@ -268,7 +344,7 @@ fn main() {
 - In `cargo.toml` we can define two different panic behaviors. `panic = unwind` or `panic = abort`
   - `panic = unwind`:
     - iteratively unwinds stack
-    - calls destructors for all in-scope objects (__Look into `Drop`__)
+    - calls destructors for all in-scope objects (**Look into `Drop`**)
     - Optionally lets upper layers catch panic via: `std::panic::catch_unwind()`
     - Leads to larger binaries (because we include unwinding tables and destructors)
   - `panic = abort`:

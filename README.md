@@ -18,6 +18,203 @@ Working through examples in the Rust Book
 - After building for the first time, a frozen set of versions is written to `Cargo.lock`, so on future fresh builds, if `Cargo.lock` is present we get a reproducible build.
 - `cargo update` will ignore `Cargo.lock` and find the most updated packages that are in complaince with your `Cargo.toml`
 
+### Chapter 3 - Common Programming Concepts
+
+- You can shadow a variable by doing:
+
+  ```rust
+  let x = 5;
+  let x = x + 1;
+  // You can change the data type
+  let spaces = "     "
+  let spaces = spaces.len()
+  ```
+
+- We make a "new" variable that wil take it's spot for any future references.
+- When compiling/building with `--release` flag, Rust does not include checks for integer overflow. So, if integer overflow happens, Rust will not panic and silently wrap around.
+- Tuple Type: Once declared, cannot grow in size.
+
+  ```rust
+  let x: (i32, f64, u8) = (500, 6.4, 1);
+
+  let five_hundred = x.0;
+
+  let six_point_four = x.1;
+
+  let one = x.2;
+  ```
+
+- Array Syntax:
+
+  ```rust
+  let a: [i32; 5] = [1, 2, 3, 4, 5];
+  let a = [3; 5]; // [3, 3, 3, 3, 3]
+  ```
+
+- `if` in a `let` Statement:
+
+  ```rust
+  let condition = true;
+  let number = if condition { 5 } else { 6 };
+  ```
+
+- Rust supports `loop {}`, `while {}`, `for _ in (lb, ub+1) {}` or `(lb, ub+1).rev()`.
+
+### Chapter 4 - Ownership
+
+- Ownership Rules
+  - Each value in Rust has an owner
+  - There can only be one owner at a time
+  - When the owner goes out of scope, the value will be dropped.
+- `Copy` trait: The variables that use it do not move, but are trivially copied, because their size is known at compile-time. Example:
+
+  ```rust
+  let x = 5;
+  let y = x;
+  println!("x = {x}, y = {y}"); // x = 5, y = 5
+  ```
+
+- The same struct/type cannot implement the `Drop` + `Copy` trait.
+  - `Copy` is a trivial duplication with no cleanup
+  - `Drop` means guaranteed cleanup excatly once
+- Theoretically if both traits were implemented:
+  - The compiler would generate implicit copies
+  - Each copy would run `drop()` when it goes out of scope
+  - Multiple destructor calls for the same logical resource.
+- Referencing = `&`, Dereferencing = `*`
+- The act of creating a reference is called borrowing, a reference cannot modify the value.
+  - Need to create a mutable reference, with `&mut var` if you want to modify the underlying value.
+  - Similar to write & read locks:
+    - You can issue as many read locks as long as no write locks have been issued
+    - But once a write lock has been issued, cannot give/acquire a read lock, till write lock has been released.
+- When a reference falls out of scope, the value being pointed to, is not dropped because the reference does not own the value.
+
+- Slices are non-owning references to contiguous segment of a collection.
+- Example: String Slice
+
+  ```rust
+  let s = String::from("hello world");
+  let hello = &s[0..5];
+  let world = &s[6..11];
+  ```
+
+- A slice is internally a pointer + length, representing `[start, end)` in bytes.
+- For example:
+
+  ```rust
+  fn first_word(s: &String) -> &str {
+    for (i, &b) in s.as_bytes().iter().enumerate() {
+      if b == b' ' { return &s[0..i];}
+    }
+    &s[..] // s is one word with no spaces found
+  }
+
+
+  fn main() {
+    let mut s = String::from("hello world");
+    let word = first_word(&s);
+    s.clear() // compile-time error: cannot mutate while slice exists
+  }
+  ```
+
+### Chapter 5 - Structs
+
+- Structs vs. Tuples:
+  1. Clarity: Fields have names, instead of tuples where you have to do `var_tuple.idx`
+  2. Ordering: Structs do not care about ordering during instantiation
+  3. Type Specificity: Each struct is it's own type, tuples are only distinguished by shape
+
+- Example:
+
+  ```rust
+  #[derive(Debug)]
+  struct User {active: bool, username: String, email: String, sign_in_count: u64}
+  // Instantiation
+  let u1 = User {active: true, username: String::from("u"), email: String::from("e"), sign_in_count: 1};
+
+  // Update (use the existing fields from u1 with ..u1)
+  let u2 = User {email: String::from("another@email.com"), ..u1}
+
+  // With the debug trait, we can do the following:
+  println!("User is {u2:?}");
+  dbg!(&u2);
+
+  // Unit Struct = No data but a useful marker for implementing traits
+  struct AlwaysEqual;
+  ```
+
+- Ownerships in Structs
+  - Using `String` fields ensures that struct owns its data. References require explicit lifetimes.
+  - Without lifetimes, the compiler cannot verify if the referenced data remains valid.
+  - Here is an example without lifetimes:
+
+  ```rust
+  struct User<'a> {
+    username: &'a str, 
+    email: &'a str,
+  }
+
+  fn main() {
+    let username = String::from("name");
+    let email = String::from("name@gmail.com");
+    let u = User{username: &username, email: &email};
+
+    drop(email); // Releases memory that u still points to.
+    println!("{}", u.username); // Points to freed memory
+  }
+  ```
+
+  - The `drop(email)` will cause a compile-time error because of the explicit lifetime stated in User.
+
+### Chapter 6 - Enums and Pattern Matching
+- TBD
+
+### Chapter 7 - Managing Projects with Crates, Packages, and Modules
+- TBD
+
+### Chapter 8 - Common Collections
+- Define new Vector with `let v: Vec<T> = Vec::new();`
+- If we have a reference to any element, we cannot push a new number to the end of the vector. Why?
+  - Assuning `let n = v.len();` and `let m = v.capacity();`:
+    - If n+1 < m: Pushing a new element to `v` will work fine without affecting the reference.
+    - If n+1 >= m: Vector `v` might have to be reallocated to a different contiguous location in memory. __MAKING THE REFERENCE INVALID__. So, Rust's borrow checker does not allow pushing new elements while there is a reference.
+
+### Chapter 9 - Error Handling
+- TBD
+
+### Chapter 10 - Generic Types, Traits, and Lifetimes
+- TBD
+
+### Chapter 11 - Writing Automated Tests
+- TBD
+
+### Chapter 12 - An I/O Project: Building a Command Line Program
+- TBD
+
+### Chapter 13 - Functional Language Features: iterators and Closures
+- TBD
+
+### Chapter 14 - More about Cargo and Crates.io
+- TBD
+
+### Chapter 15 - Smart Pointers
+- TBD
+
+### Chapter 16 - Fearles Concurrency
+- TBD
+
+### Chapter 17 - Fundamentals of Async Programming
+- TBD
+
+### Chapter 18 - Object Oriented Programming
+- TBD
+
+### Chapter 19 - Patterns and Matching
+- TBD
+
+### Chapter 20 - Advanced Features
+- TBD
+
 ## Readings
 
 ### Article 1: To panic or not to panic [[Link](https://www.ncameron.org/blog/to-panic-or-not-to-panic/)]

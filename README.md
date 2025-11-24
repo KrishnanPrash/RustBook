@@ -245,7 +245,65 @@ Working through examples in the Rust Book
 
 ### Chapter 9 - Error Handling
 
-- TBD
+- `panic!` is used for unrecoverable errors.
+- By default, Rust will unwind the stack, running destructors as it walks up. This is costly, so you can set `panic = "abort"` in `Cargo.toml` (makes binary smaller and skips cleanup)
+- Setting `RUST_BACKTRACE=1` shows a backtrace of panic.
+- Recoverable Errors
+
+  ```rust
+  enum Result<T, E> {
+    Ok(T),
+    Err(E)
+  }
+
+
+  // How this looks for opening files:
+  let f = match File::open("hello.txt") {
+    Ok(file) => file,
+    Err(error) => panic!("Problem: {error:?}"),
+  };
+
+  // If you want to get more specific on the error block:
+  let f = match File::open("hello.txt") {
+    Ok(file) => file,
+    Err(error) => match e.kind() {
+            ErrorKind::NotFound => ...,
+            _ => panic!("Other error: {e:?}");
+    },
+  };
+  ```
+
+- `unwrap()/unwrap_or_else()/expect()`:
+```rust
+// WITH Option<T>
+let val = Some(3).unwrap();   // 3
+let val = None.unwrap();      // panic: "called `Option::unwrap()`..."
+let val = None.expect("value missing"); // panic: "value missing"
+let val = None.unwrap_or_else(|| 10);  // 10 (NO ARGUMENT TAKEN BECAUSE OPTION DOES NOT HAVE ERROR TYPE)
+
+// WITH Result<T, E>
+let x = Ok(3).unwrap();           // 3
+let x = Err("err").unwrap();      // panic with generic error message
+let x = Err("err").expect("Failed to compute"); // panic: "Failed to compute: err"
+let x = Err("err").unwrap_or_else(|e| {
+    eprintln!("Got error: {e}");
+    10
+}); // -> 10   (closure receives the error)
+```
+
+- THE `?` OPERATOR
+  - With `?` operator, we can propogate any errors caught back to the caller.
+  ```
+  fn read_username_from_file() -> Result<String, io::Error> {
+      let mut f = File::open("hello.txt")?;
+      let mut s = String::new();
+      f.read_to_string(&mut s)?;
+      Ok(s)
+  }
+  ```
+  - You can use `?` on `Result` ONLY IN FUNCTIONS THAT RETURN `Result`
+  - You can use `?` on `Option` ONLY IN FUNCTIONS THAT RETURN `Option`
+- `Box<dyn Error>` is a catch-all for all kinds of errors.
 
 ### Chapter 10 - Generic Types, Traits, and Lifetimes
 

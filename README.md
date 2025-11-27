@@ -163,9 +163,10 @@ Working through examples in the Rust Book
     drop(email); // Releases memory that u still points to.
     println!("{}", u.username); // Points to freed memory
   }
-
+  ```
 
   - The `drop(email)` will cause a compile-time error because of the explicit lifetime stated in User with `'a`.
+  - User needs `'a` lifetime because the struct must not outlive the referenced data.
 
 ### Chapter 6 - Enums and Pattern Matching
 
@@ -219,6 +220,7 @@ Working through examples in the Rust Book
   ```
 
 - `if let` vs `match`:
+
   ```rust
       match config_max {
         Some(max) => println!("Max is {max}"),
@@ -274,6 +276,7 @@ Working through examples in the Rust Book
   ```
 
 - `unwrap()/unwrap_or_else()/expect()`:
+
 ```rust
 // WITH Option<T>
 let val = Some(3).unwrap();   // 3
@@ -293,7 +296,8 @@ let x = Err("err").unwrap_or_else(|e| {
 
 - THE `?` OPERATOR
   - With `?` operator, we can propogate any errors caught back to the caller.
-  ```
+
+  ```rust
   fn read_username_from_file() -> Result<String, io::Error> {
       let mut f = File::open("hello.txt")?;
       let mut s = String::new();
@@ -301,17 +305,99 @@ let x = Err("err").unwrap_or_else(|e| {
       Ok(s)
   }
   ```
+
   - You can use `?` on `Result` ONLY IN FUNCTIONS THAT RETURN `Result`
   - You can use `?` on `Option` ONLY IN FUNCTIONS THAT RETURN `Option`
 - `Box<dyn Error>` is a catch-all for all kinds of errors.
 
 ### Chapter 10 - Generic Types, Traits, and Lifetimes
 
-- TBD
+- `where` clause (readibility improvement)
+  - Meant to visually separate the shape of function & constraints necessary for function to be valid.
 
+  ```rust
+  pub fn some_function<T: Display + Clone, U: Clone + Debug>(
+      t: &T,
+      u: &U,
+  ) -> String {
+        // ...
+      }
+
+  pub fn some_function<T, U>(t: &T, u: &U) -> String
+  where
+      T: Display + Clone,
+      U: Clone + Debug,
+      {
+        // ...
+      }
+  ```
+
+- Lifetimes
+  - Each reference has a lifetime
+  - Borrow Checker validates relationships between lifetimes
+  - Lifetimes DO NOT AFFECT RUNTIME
+  - IT IS A COMPILER CONSTRUCT
+
+  ```rust
+  fn longest<'a>(x: &'a str, y: &'a str) -> &'a str
+  // THE RETURN VALUE MUST BE VALID FOR ATLEAST AS LONG AS BOTH INPUT REFERENCES
+  ```
+
+  - Lifetime Epsilon Rules
+     1. Each reference parameter gets its own lifetime parameter
+     2. If one input lifetime, it is assigned to all output lifetimes
+     3. If a method has `&self` or `&mut self`, the lifetime of self is assigned to all output lifetimes.
+  - Static Lifetime
+    - Refers to data that lives for the entire duration of the program.
+    - Data is stored in program's binary.
+
+    ```rust
+    let s: &'static str = "I have a static lifetime.";
+    ```
+
+  - Combining Generics + Traits + Lifetimes
+
+  ```rust
+  fn longest_with_an_announcement<'a, T>(x: &'a str, y: &'a str, ann: T) -> &'a str
+  where
+    T: Display,
+    { ... }
+  // T is a generic type parameter that requires implementation of Display
+  // Function uses lifetime parameter 'a
+  // ann must implement traits specified by T
+  // Return reference is bound by 'a, independent of T lifetime.
+  ```
+  
 ### Chapter 11 - Writing Automated Tests
 
-- TBD
+- Using `Result<T, E>` in Tests
+  - Don't have to return anything, or they can return `Result<T,E>`
+  - If test returns `Ok(...)` -> pass, returns `Err(...)` -> fail.
+- Force Single Threaded Tests: `cargo test -- --test-threads=1`
+- Show Test Output: `cargo test -- --nocapture`
+- Unit Tests live in same file as source code
+- Integration Tests live at `my_project_root/tests`  
+
+```rust
+  // ... source code beguins...
+  
+  // This is a doc test that rust can compile and run when we do `cargo test`
+
+  /// Adds one.
+  /// ```
+  /// assert_eq!(my_crate::add_one(1), 2);
+  /// ```
+  
+  
+  // ... source code ends ...
+
+  #[cfg(test)]
+  mod tests {
+    fn test_...() {
+
+    }
+  }
+  ```
 
 ### Chapter 12 - An I/O Project: Building a Command Line Program
 

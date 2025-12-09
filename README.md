@@ -401,11 +401,47 @@ let x = Err("err").unwrap_or_else(|e| {
 
 ### Chapter 12 - An I/O Project: Building a Command Line Program
 
-- TBD
+- To provide cmd line arguments, you can do -- arg1 arg2
+  - `arg1` and `arg2` get ingested by your program instead of `cargo`
+- `0sString` can be used for cases where input is invalid Unicode.
 
 ### Chapter 13 - Functional Language Features: iterators and Closures
 
-- TBD
+- Closures:
+  - Like lambdas from Python/C++
+  - Stronger Ownership Semantics + Stricter Type Rules
+  - Closures can capture variables in 3 ways:
+    - `&T` Immutable Borrow
+    - `&mut T` - Mutable Borrow
+    - `T` - Take Ownership
+
+  ```rust
+  let v = vec![1,2,3];
+
+  let print_v = || println!("{:?}", v); // IMMUTABLE BORROW
+  let mut push_v = || v.push(4); // MUTABLE BORROW
+  thread::spawn(move || println!("{:?}", v)); // TAKE OWNERSHIP 
+  // Last one is required when there are multiple threads, prevents race conditions.
+  ```
+
+- Iterators
+  - All iterators need to implement the `Iterator` trait:
+
+  ```rust
+  fn next(&mut self) -> Option<Self::Item> {}
+  ```
+
+  - Rust iterators do nothing until consumed.
+  - Categories:
+    - Consumers: `sum()`, `collect()`, `for`
+    - Adapters : `map`, `filter`, `enumerate`, transform but do not consume data.
+  - Adapters will create a pipeline of actions that need to be done when consumed.
+  - Iterator chains will perform same/better than hand-written loops.
+  - Example:
+
+  ```rust
+  v.iter().map(|x| x + 1).filter(|x| x % 2 == 0).collect::<Vec<_>>();
+  ```
 
 ### Chapter 14 - More about Cargo and Crates.io
 
@@ -413,27 +449,325 @@ let x = Err("err").unwrap_or_else(|e| {
 
 ### Chapter 15 - Smart Pointers
 
-- TBD
+- 2 important traits for Smart Pointers:
+  - `Deref`: makes smart pointers act like references, enabling `*`
+  - `Drop`: runs custom logic when smart pointer goes out of scope
 
+- Common Smart Pointers in Rust std lib:
+  - `Box<T>` - Heap Allocation
+  - `Rc<T>` - Reference Counting + Shared Ownership
+  - `Ref<T>/RefMut<T>` - Runtime checked borrows enabling interior mutability
+
+- `Box<T>`: Heap Allocation
+  - `T` needs to be a type with a known compile-time size.
+
+  - ```rust
+    fn main() {
+      let b = Box::new(5);
+      println!("b = {b}");
+    }
+    ```
+
+  - b stores a pointer on stack, 5 lives on heap. When dropped heap and pointer is freed.
+  - Recursion + `Box<T>`
+
+    - ```rust
+      enum List {
+        Cons(i32, List),
+        Nil,
+      }
+
+      // This will not compile, because Rust Compiler will try to figure out size of List and do something like:
+      // List::Cons = size_of::<i32> + size_of::<List> which endlessly loops
+      // Instead we could do:
+
+      enum List {
+        Cons(i32, Box<List>),
+        Nil,
+      }
+
+      // The size of Box<List> is known, so now
+      // List::Cons = size_of::<i32> + size_of::<Box<List>> <- size_of::<pointer>
+      ```
+  
+- `Deref`
+  - Needed to make smart pointers behave like references
+
+  - ```rust
+    struct MyBox<T>(T);
+
+    impl<T> MyBox<T> {
+      fn new(x: T) -> MyBox<T> {
+          MyBox(x)
+      }
+    }
+
+    
+    // Deref will return a reference, not the owned value
+    impl<T> Deref for MyBox<T> {
+      type Target = T;
+      fn deref(&self) -> &Self::Target {
+          &self.0
+          }
+    }
+    // Then we can do something like *mybox, which internally does: *(mybox.deref())
+    // Additionally, deref coercion, will automatically convert `&T` to `&U` if `T: Deref<Target = U>`
+
+    fn hello(name: &str) {
+      println!("Hello, {name}!");
+    }
+
+    let m = MyBox::new(String::from("Rust"));
+    hello(&m);
+
+    // Finally, for cleanup:
+    // We cannot explicitly call the destructor:
+    m.drop();
+
+    // Instead, we rely on this to consume the value and force cleanup:
+    std::mem::drop(m);
+    ```
+
+- `RC<T>` = Reference Counter Smart Pointer (`shared_ptr<T>` C++ equivalent)
+  - Rust default ownership is one owner per value, but sometimes you need multiple owners of the same heap value
+  - ONLY USE IN SINGLE-THREADED (NOT ATOMIC)
+  - CORE PROPERTIES:
+    - Internal Value = Strong Count (rc)
+    - If rc = 0, data is dropped.
+    - If `clone()` called on pointer, rc++
+    - If `drop()` called on pointer, rc--
+- `RefCell<T>`
+  - Allows mutation through an immutable reference
+  - Borrow-Checking happens at runtime (failure will cause panic), instead of compile time (failure will cause compile-time error)
+  - `RefCell<T>` key functions:
+    - `borrow()` -> Immtable, returns `Ref<T>`
+    - `borrow_mut()` -> Mutable, returns `RefMut<T>`
+  - `Rc<RefCell<T>>` can cause runtime panic, because reference counting allows multiple references and ref cell allows for mutability. So `RefCell<T>` resolves to a mutable reference with `borrow_mut()`, then `Rc<T>` can create multiple mutable references to the same spot in the heap.
+  - `Weak<T>`:
+    - To prevent cycles, we can define weak refs
+    - `Rc<T>` clones will upgrade strong count and denote ownership
+    - `Weak<T>` clones will NOT incrememnt strong count and denote non-owning references.
+  
 ### Chapter 16 - Fearles Concurrency
 
-- TBD
+- The Rust standard library uses a 1:1 model of thread implementation, whereby a program uses one operating system thread per one language thread.
+- Don't communicate between threads, by sharing memory, communicate by channels. Each channel has two parts: transmitter and receiver
 
-### Chapter 17 - Fundamentals of Async Programming
+  ```rust
+  use std::sync::mpsc;
+  use std::thread;
 
-- TBD
+  fn main() {
+      let (tx, rx) = mpsc::channel();
+
+      thread::spawn(move || {
+          let val = String::from("hi");
+          tx.send(val).unwrap();
+          // Send takes ownership of val
+          // So if we try doing something like:
+          // println!("Value: {val}")
+          // it will not compile
+      });
+
+      let received = rx.recv().unwrap();
+      println!("Got: {received}");
+  }  
+  ```
+
+- `recv()` is blocking, `try_recv()` is a non-blocking call that returns `Result<T, E>`
+- For Mutexs:
+
+  ```rust
+  use std::sync::Mutex;
+
+  fn main() {
+      let m = Mutex::new(5);
+
+      {
+          let mut num = m.lock().unwrap();  // blocks until lock acquired
+          *num = 6;                         // num: MutexGuard<i32> (IMPLEMENTS DEREF)
+      }                                     // lock released here
+
+      println!("{:?}", m);
+  }
+  ```
+
+- `Arc<T>`: Atomic Reference Counting
+  - Updates to this pointer are atomic and instantly reflected across threads.
+
+  - ```rust
+      use std::sync::{Arc, Mutex};
+      use std::thread;
+
+      fn main() {
+          let counter = Arc::new(Mutex::new(0));
+          let mut handles = vec![];
+
+          for _ in 0..10 {
+              let counter = Arc::clone(&counter);     // cheap atomic increment
+              let h = thread::spawn(move || {
+                  let mut num = counter.lock().unwrap();
+                  *num += 1;
+              });
+              handles.push(h);
+          }
+
+          for h in handles {
+              h.join().unwrap();
+          }
+
+          println!("Result: {}", *counter.lock().unwrap());
+      }
+    ```
+
+- Rust Concurrency relies on data types implementing the two following marker traits: `Send` and `Sync`
+  - `Send`: Can I move a value into a new thread, is that move safe?
+  - `Sync`: Is `&T` safe to share across multiple threads at the same time?
+
+### Chapter 17 - Async Programming
+
+- Parallelism: Multiple cores doing work simultaneously. Hardware.
+- Concurrency: Switching between multiple tasks logically at once. Software.
+- Async Rust is concurrency first.
+- Rust Futures are:
+  - Lazy: they don’t run until you .await.
+  - State machines: the compiler transforms async code into an enum-like type with states.
+  - Polled: the runtime repeatedly asks the future “are you ready yet?”
+- `async fn` compiles into normal function returning `impl Future<Output = T>`
+- `await` suspends future, yields control to the runtime and later. `async` function is a state machine with a "resume here" every time you use `await`.
+- Examples:
+
+  ```rust
+  async fn page_title(url: &str) -> Option<String> {
+    let response = trpl::get(url).await?;   // async HTTP GET
+    let body = response.text().await?;      // await body download
+
+    // Parse HTML and find <title>
+    let doc = Html::parse_document(&body);
+    let selector = Selector::parse("title").ok()?;
+    let el = doc.select(&selector).next()?;
+    Some(el.inner_html())
+  }
+
+  async fn fastest_title(url1: &str, url2: &str) -> Option<String> {
+    let f1 = page_title(url1);
+    let f2 = page_title(url2);
+
+    match trpl::race(f1, f2).await {
+        Either::Left(title) => title, // url1
+        Either::Right(title) => title, // url2
+    }
+  }
+
+
+  let fut = async {
+    let x = compute().await;
+    x + 1
+  };
+
+  // fut is a Future. Not running until awaited:
+  let result = fut.await;
+  ```
+
+- An async runtime is a queue of futures where each future is polled to see if it is `Ready` or `Pending`.
+- Example of Async Tasks:
+
+  ```rust
+  let handle = trpl::spawn_task(async {
+                      /* work */
+                  });
+  handle.await.unwrap();
+  ```
+
+- Joining Futures:
+
+  ```rust
+  let fut1 = async { ... };
+  let fut2 = async { ... };
+
+  trpl::join(fut1, fut2).await; // Deterministic Interleaving
+  ```
+
+  - Joining Futures:
+
+  ```rust
+  trpl::join!(a, b, c); // If # of futures known at compile-time
+  // If # of futures unknwon at compile-time
+  use std::pin::Pin;
+  let futures: Vec<Pin<Box<dyn Future<Output = ()>>>> = vec![
+    Box::pin(f1), // Pinning prevents a value from being moved in memory once it's been pinned.
+    Box::pin(f2),
+  ];
+
+  trpl::join_all!(futures);
+  ```
+
+- Racing Futures:
+  - poll multiple futures and return whoever is `Ready` first, cancel the others: `trpl::race(fut1, fut2).await;`
+
+- Streams = Async Iterators
+  - `Iterator::next()` -> Sync, `StreamExt::next()` -> Async
+  - Streams are used when data arrives over time
+  - Example: 
+  ```rust
+  use trpl::StreamExt;
+
+  fn main() {
+      trpl::run(async {
+          let values = [1,2,3,4,5,6,7,8,9,10];
+          let iter = values.iter().map(|n| n * 2);
+          let mut stream = trpl::stream_from_iter(iter);
+
+          while let Some(value) = stream.next().await {
+              println!("The value was: {value}");
+          }
+      });
+  }
+  ```
 
 ### Chapter 18 - Object Oriented Programming
 
-- TBD
+- Static Dispatch: Compile-Time with generics (`T: Trait`)
+- Dynamic Dispatch: Vtable pointer at runtime (`dyn Trait`)
+- Example:
+```rust
 
-### Chapter 19 - Patterns and Matching
+trait Shape {
+    fn area(&self) -> f64;
+}
 
-- TBD
+// Static Dispatch
+fn print_area<T: Shape>(shape: &T) {
+    println!("{}", shape.area());
+}
 
-### Chapter 20 - Advanced Features
 
-- TBD
+// Dynamic Dispatch
+fn print_area_dyn(shape: &dyn Shape) {
+    println!("{}", shape.area());
+}
+
+
+fn main() {
+  // Static Dispatch
+  print_area(&Circle { r: 10.0 });
+  print_area(&Square { s: 3.0 });
+  // Rust will generate two calls internally at compile-time:
+  // print_area_for_Circle(...)
+  // print_area_for_Square(...)
+
+
+  // Dynamic Dispatch
+  print_area_dyn(Box::new(Circle { r: 10.0 }));
+  print_area_dyn(Box::new(Square { s: 3.0 }));
+  // In this case, shape is a FAT POINTER
+  // FAT POINTERS = (data_ptr, vtable_ptr)
+  // Steps for dispatch:
+  // 1. load vtable pointer
+  // 2. Lookup offset of 'area'
+  // 3. jump to function impl
+}
+```
 
 ## Readings
 
